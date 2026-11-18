@@ -1,0 +1,604 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  CITY_ADMIN
+}
+
+enum AssociateStatus {
+  INCOMPLETE
+  PENDING_VERIFICATION
+  ACTIVE
+  REJECTED
+  SUSPENDED
+}
+
+enum BusinessType {
+  HOTEL
+  RESTAURANT
+  FUNCTION_HALL
+  CATERER
+  INDIVIDUAL
+}
+
+enum EventType {
+  WEDDING
+  PARTY
+  CORPORATE
+  RESTAURANT_DAILY
+  HOTEL_DAILY
+  OTHER
+}
+
+enum BookingStatus {
+  DRAFT
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum JobRole {
+  SERVER
+  CAPTAIN
+  HELPER
+  KITCHEN_HELPER
+  OTHER
+}
+
+enum JobPostStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+enum AssignmentStatus {
+  CONFIRMED
+  WAITLISTED
+  OFFERED
+  DROPPED
+  REMOVED
+  EXPIRED
+  NO_SHOW
+  COMPLETED
+}
+
+enum LedgerType {
+  WORK_EARNING
+  TL_BONUS
+  OVERTIME
+  REFERRAL_BONUS
+  PENALTY
+  PAYOUT
+  ADJUSTMENT
+}
+
+enum PenaltyType {
+  NO_SHOW
+  LATE_DROP
+  LATE_ARRIVAL
+  COMPLAINT
+  OTHER
+}
+
+enum PayoutMethod {
+  UPI
+  BANK_TRANSFER
+  CASH
+}
+
+enum NotificationType {
+  JOB_POSTED
+  OFFER_AVAILABLE
+  OFFER_EXPIRED
+  ASSIGNMENT_REMOVED
+  BOOKING_CANCELLED
+  TL_ASSIGNED
+  TL_REMOVED
+  ACCOUNT_APPROVED
+  ACCOUNT_REJECTED
+  ACCOUNT_SUSPENDED
+  PAYOUT_RECORDED
+  PENALTY_ADDED
+  EVENT_REMINDER
+  BROADCAST
+}
+
+enum TlMark {
+  UNMARKED
+  PRESENT
+  ABSENT
+}
+
+enum FinalStatus {
+  PENDING
+  PRESENT
+  ABSENT
+}
+
+enum EventPhotoKind {
+  ARRIVAL_GROUP
+  FINAL_GROUP
+}
+
+enum PenaltyStatus {
+  ACTIVE
+  WAIVED
+}
+
+enum ClientPaymentType {
+  ADVANCE
+  BALANCE
+}
+
+enum ClientPaymentMethod {
+  UPI
+  BANK_TRANSFER
+  CASH
+  CHEQUE
+}
+
+enum SubjectType {
+  ADMIN
+  ASSOCIATE
+}
+
+model City {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String      @unique
+  isActive   Boolean     @default(true)
+  createdAt  DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime    @default(now()) @updatedAt @db.Timestamptz(3)
+  areas      Area[]
+  admins     AdminUser[]
+  associates Associate[]
+  clients    Client[]
+  bookings   Booking[]
+}
+
+model Area {
+  id         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cityId     String          @db.Uuid
+  name       String
+  isActive   Boolean         @default(true)
+  createdAt  DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime        @default(now()) @updatedAt @db.Timestamptz(3)
+  city       City            @relation(fields: [cityId], references: [id])
+  associates AssociateArea[]
+  bookings   Booking[]
+
+  @@unique([cityId, name])
+}
+
+model AdminUser {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name               String
+  email              String           @unique
+  passwordHash       String
+  role               AdminRole
+  cityId             String?          @db.Uuid
+  isActive           Boolean          @default(true)
+  lastLoginAt        DateTime?        @db.Timestamptz(3)
+  createdAt          DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime         @default(now()) @updatedAt @db.Timestamptz(3)
+  city               City?            @relation(fields: [cityId], references: [id])
+  approvedAssociates Associate[]      @relation("AssociateApprovedBy")
+  bookingsCreated    Booking[]        @relation("BookingCreatedBy")
+  bookingsConfirmed  Booking[]        @relation("BookingConfirmedBy")
+  payoutsPaid        Payout[]
+  penaltiesCreated   Penalty[]        @relation("PenaltyCreatedBy")
+  penaltiesWaived    Penalty[]        @relation("PenaltyWaivedBy")
+  ledgerCreated      LedgerEntry[]
+  ratingsEntered     Rating[]
+  clientPayments     ClientPayment[]
+  invoicesCreated    Invoice[]
+  settingsUpdated    AdminSetting[]
+  auditLogs          AuditLog[]
+}
+
+model Associate {
+  id                   String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phone                String           @unique
+  status               AssociateStatus  @default(INCOMPLETE)
+  fullName             String?
+  gender               String?
+  dateOfBirth          DateTime?        @db.Date
+  address              String?
+  cityId               String?          @db.Uuid
+  language             String           @default("te")
+  aadhaarFrontKey      String?
+  aadhaarBackKey       String?
+  panKey               String?
+  profilePhotoKey      String?
+  skills               String[]         @default([])
+  experienceNotes      String?
+  bankAccountHolder    String?
+  bankAccountNumberEnc String?
+  bankAccountLast4     String?
+  bankIfsc             String?
+  upiId                String?
+  rejectionReason      String?
+  suspensionReason     String?
+  referralCode         String           @unique
+  referredById         String?          @db.Uuid
+  ratingAvg            Decimal          @default(0) @db.Decimal(3, 2)
+  ratingCount          Int              @default(0)
+  expoPushToken        String?
+  approvedAt           DateTime?        @db.Timestamptz(3)
+  approvedById         String?          @db.Uuid
+  createdAt            DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime         @default(now()) @updatedAt @db.Timestamptz(3)
+  city                 City?            @relation(fields: [cityId], references: [id])
+  referredBy           Associate?       @relation("Referral", fields: [referredById], references: [id])
+  referrals            Associate[]      @relation("Referral")
+  approvedBy           AdminUser?       @relation("AssociateApprovedBy", fields: [approvedById], references: [id])
+  areas                AssociateArea[]
+  assignments          Assignment[]
+  penalties            Penalty[]
+  ledgerEntries        LedgerEntry[]
+  payouts              Payout[]
+  ratings              Rating[]
+  notifications        Notification[]
+  eventPhotos          EventPhoto[]
+
+  @@index([cityId, status])
+  @@index([referredById])
+}
+
+model AssociateArea {
+  associateId String    @db.Uuid
+  areaId      String    @db.Uuid
+  associate   Associate @relation(fields: [associateId], references: [id], onDelete: Cascade)
+  area        Area      @relation(fields: [areaId], references: [id])
+
+  @@id([associateId, areaId])
+}
+
+model OtpRequest {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phone      String
+  codeHash   String
+  expiresAt  DateTime  @db.Timestamptz(3)
+  attempts   Int       @default(0)
+  consumedAt DateTime? @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime  @default(now()) @updatedAt @db.Timestamptz(3)
+
+  @@index([phone, createdAt])
+}
+
+model RefreshToken {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  subjectType SubjectType
+  subjectId   String      @db.Uuid
+  tokenHash   String      @unique
+  familyId    String      @db.Uuid
+  expiresAt   DateTime    @db.Timestamptz(3)
+  revokedAt   DateTime?   @db.Timestamptz(3)
+  userAgent   String?
+  createdAt   DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime    @default(now()) @updatedAt @db.Timestamptz(3)
+
+  @@index([subjectType, subjectId])
+  @@index([familyId])
+}
+
+model Client {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cityId       String       @db.Uuid
+  businessName String
+  contactName  String
+  phone        String
+  email        String?
+  businessType BusinessType
+  address      String?
+  gstNumber    String?
+  notes        String?
+  createdAt    DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime     @default(now()) @updatedAt @db.Timestamptz(3)
+  city         City         @relation(fields: [cityId], references: [id])
+  bookings     Booking[]
+
+  @@index([cityId])
+}
+
+model Booking {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookingSeq     Int           @unique @default(autoincrement())
+  clientId       String        @db.Uuid
+  cityId         String        @db.Uuid
+  areaId         String?       @db.Uuid
+  eventType      EventType
+  eventName      String
+  venueName      String
+  venueAddress   String
+  lat            Decimal       @db.Decimal(9, 6)
+  lng            Decimal       @db.Decimal(9, 6)
+  startTime      DateTime      @db.Timestamptz(3)
+  endTime        DateTime      @db.Timestamptz(3)
+  status         BookingStatus @default(DRAFT)
+  tlAssignmentId String?       @unique @db.Uuid
+  tlExtraPay     Int           @default(0)
+  tlCompletedAt  DateTime?     @db.Timestamptz(3)
+  confirmedAt    DateTime?     @db.Timestamptz(3)
+  confirmedById  String?       @db.Uuid
+  completedAt    DateTime?     @db.Timestamptz(3)
+  cancelledAt    DateTime?     @db.Timestamptz(3)
+  cancelReason   String?
+  notes          String?
+  createdById    String        @db.Uuid
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime      @default(now()) @updatedAt @db.Timestamptz(3)
+  client         Client        @relation(fields: [clientId], references: [id])
+  city           City          @relation(fields: [cityId], references: [id])
+  area           Area?         @relation(fields: [areaId], references: [id])
+  tlAssignment   Assignment?   @relation("BookingTl", fields: [tlAssignmentId], references: [id])
+  confirmedBy    AdminUser?    @relation("BookingConfirmedBy", fields: [confirmedById], references: [id])
+  createdBy      AdminUser     @relation("BookingCreatedBy", fields: [createdById], references: [id])
+  jobPosts       JobPost[]
+  eventPhotos    EventPhoto[]
+  ledgerEntries  LedgerEntry[]
+  ratings        Rating[]
+  clientPayments ClientPayment[]
+  invoice        Invoice?
+
+  @@index([cityId, status, startTime])
+  @@index([clientId])
+}
+
+model JobPost {
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookingId         String        @db.Uuid
+  role              JobRole
+  slots             Int
+  clientRatePerHead Int
+  associatePay      Int
+  reportingTime     DateTime      @db.Timestamptz(3)
+  applyDeadline     DateTime      @db.Timestamptz(3)
+  dressCode         String?
+  foodProvided      Boolean       @default(false)
+  transportNote     String?
+  status            JobPostStatus @default(DRAFT)
+  publishedAt       DateTime?     @db.Timestamptz(3)
+  createdAt         DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime      @default(now()) @updatedAt @db.Timestamptz(3)
+  booking           Booking       @relation(fields: [bookingId], references: [id])
+  assignments       Assignment[]
+
+  @@index([bookingId])
+  @@index([status])
+}
+
+model Assignment {
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobPostId         String           @db.Uuid
+  associateId       String           @db.Uuid
+  status            AssignmentStatus
+  appliedAt         DateTime         @default(now()) @db.Timestamptz(3)
+  confirmedAt       DateTime?        @db.Timestamptz(3)
+  offerExpiresAt    DateTime?        @db.Timestamptz(3)
+  droppedAt         DateTime?        @db.Timestamptz(3)
+  tlMark            TlMark           @default(UNMARKED)
+  tlMarkedAt        DateTime?        @db.Timestamptz(3)
+  finalStatus       FinalStatus      @default(PENDING)
+  overtimeMinutes   Int              @default(0)
+  adminNote         String?
+  reminder24hSentAt DateTime?        @db.Timestamptz(3)
+  reminder3hSentAt  DateTime?        @db.Timestamptz(3)
+  createdAt         DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime         @default(now()) @updatedAt @db.Timestamptz(3)
+  jobPost           JobPost          @relation(fields: [jobPostId], references: [id])
+  associate         Associate        @relation(fields: [associateId], references: [id])
+  attendance        Attendance?
+  rating            Rating?
+  penalties         Penalty[]
+  ledgerEntries     LedgerEntry[]
+  tlOfBooking       Booking?         @relation("BookingTl")
+
+  @@unique([jobPostId, associateId])
+  @@index([associateId, status])
+  @@index([jobPostId, status])
+}
+
+model Attendance {
+  id               String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assignmentId     String     @unique @db.Uuid
+  checkInAt        DateTime   @db.Timestamptz(3)
+  checkInLat       Decimal    @db.Decimal(9, 6)
+  checkInLng       Decimal    @db.Decimal(9, 6)
+  checkInAccuracyM Float
+  checkInDistanceM Float
+  checkInSelfieKey String
+  isLate           Boolean    @default(false)
+  lateMinutes      Int        @default(0)
+  checkOutAt       DateTime?  @db.Timestamptz(3)
+  checkOutLat      Decimal?   @db.Decimal(9, 6)
+  checkOutLng      Decimal?   @db.Decimal(9, 6)
+  createdAt        DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime   @default(now()) @updatedAt @db.Timestamptz(3)
+  assignment       Assignment @relation(fields: [assignmentId], references: [id])
+}
+
+model EventPhoto {
+  id                    String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookingId             String         @db.Uuid
+  uploadedByAssociateId String         @db.Uuid
+  kind                  EventPhotoKind
+  key                   String
+  createdAt             DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime       @default(now()) @updatedAt @db.Timestamptz(3)
+  booking               Booking        @relation(fields: [bookingId], references: [id])
+  uploadedBy            Associate      @relation(fields: [uploadedByAssociateId], references: [id])
+
+  @@index([bookingId])
+}
+
+model Payout {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  associateId   String        @db.Uuid
+  amountPaise   Int
+  method        PayoutMethod
+  referenceNo   String?
+  note          String?
+  paidAt        DateTime      @default(now()) @db.Timestamptz(3)
+  paidById      String        @db.Uuid
+  createdAt     DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime      @default(now()) @updatedAt @db.Timestamptz(3)
+  associate     Associate     @relation(fields: [associateId], references: [id])
+  paidBy        AdminUser     @relation(fields: [paidById], references: [id])
+  ledgerEntries LedgerEntry[]
+
+  @@index([associateId])
+  @@index([paidAt])
+}
+
+model Penalty {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  associateId   String        @db.Uuid
+  assignmentId  String?       @db.Uuid
+  type          PenaltyType
+  strikePoints  Int           @default(0)
+  amountPaise   Int           @default(0)
+  reason        String
+  status        PenaltyStatus @default(ACTIVE)
+  waivedAt      DateTime?     @db.Timestamptz(3)
+  waivedById    String?       @db.Uuid
+  waiveReason   String?
+  createdById   String?       @db.Uuid
+  createdAt     DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime      @default(now()) @updatedAt @db.Timestamptz(3)
+  associate     Associate     @relation(fields: [associateId], references: [id])
+  assignment    Assignment?   @relation(fields: [assignmentId], references: [id])
+  waivedBy      AdminUser?    @relation("PenaltyWaivedBy", fields: [waivedById], references: [id])
+  createdBy     AdminUser?    @relation("PenaltyCreatedBy", fields: [createdById], references: [id])
+  ledgerEntries LedgerEntry[]
+
+  @@index([associateId, status, createdAt])
+}
+
+model LedgerEntry {
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  associateId  String      @db.Uuid
+  type         LedgerType
+  amountPaise  Int
+  bookingId    String?     @db.Uuid
+  assignmentId String?     @db.Uuid
+  payoutId     String?     @db.Uuid
+  penaltyId    String?     @db.Uuid
+  note         String?
+  createdById  String?     @db.Uuid
+  createdAt    DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime    @default(now()) @updatedAt @db.Timestamptz(3)
+  associate    Associate   @relation(fields: [associateId], references: [id])
+  booking      Booking?    @relation(fields: [bookingId], references: [id])
+  assignment   Assignment? @relation(fields: [assignmentId], references: [id])
+  payout       Payout?     @relation(fields: [payoutId], references: [id])
+  penalty      Penalty?    @relation(fields: [penaltyId], references: [id])
+  createdBy    AdminUser?  @relation(fields: [createdById], references: [id])
+
+  @@unique([assignmentId, type, associateId], map: "LedgerEntry_assignment_type_associate_key")
+  @@unique([penaltyId, type], map: "LedgerEntry_penalty_type_key")
+  @@index([associateId, createdAt])
+}
+
+model Rating {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assignmentId String     @unique @db.Uuid
+  associateId  String     @db.Uuid
+  bookingId    String     @db.Uuid
+  stars        Int
+  comment      String?
+  enteredById  String     @db.Uuid
+  createdAt    DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime   @default(now()) @updatedAt @db.Timestamptz(3)
+  assignment   Assignment @relation(fields: [assignmentId], references: [id])
+  associate    Associate  @relation(fields: [associateId], references: [id])
+  booking      Booking    @relation(fields: [bookingId], references: [id])
+  enteredBy    AdminUser  @relation(fields: [enteredById], references: [id])
+
+  @@index([associateId])
+}
+
+model ClientPayment {
+  id           String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookingId    String              @db.Uuid
+  type         ClientPaymentType
+  amountPaise  Int
+  method       ClientPaymentMethod
+  referenceNo  String?
+  receivedAt   DateTime            @default(now()) @db.Timestamptz(3)
+  recordedById String              @db.Uuid
+  createdAt    DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime            @default(now()) @updatedAt @db.Timestamptz(3)
+  booking      Booking             @relation(fields: [bookingId], references: [id])
+  recordedBy   AdminUser           @relation(fields: [recordedById], references: [id])
+
+  @@index([bookingId])
+}
+
+model Invoice {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookingId     String    @unique @db.Uuid
+  invoiceNo     String    @unique
+  financialYear String
+  issuedAt      DateTime  @default(now()) @db.Timestamptz(3)
+  snapshot      Json
+  createdById   String    @db.Uuid
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime  @default(now()) @updatedAt @db.Timestamptz(3)
+  booking       Booking   @relation(fields: [bookingId], references: [id])
+  createdBy     AdminUser @relation(fields: [createdById], references: [id])
+}
+
+model InvoiceCounter {
+  financialYear String   @id
+  lastNumber    Int      @default(0)
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+}
+
+model Notification {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  associateId String           @db.Uuid
+  type        NotificationType
+  title       String
+  body        String
+  data        Json?
+  readAt      DateTime?        @db.Timestamptz(3)
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime         @default(now()) @updatedAt @db.Timestamptz(3)
+  associate   Associate        @relation(fields: [associateId], references: [id])
+
+  @@index([associateId, createdAt(sort: Desc)])
+}
+
+model AdminSetting {
+  key         String     @id
+  value       String
+  updatedById String?    @db.Uuid
+  updatedAt   DateTime   @default(now()) @updatedAt @db.Timestamptz(3)
+  updatedBy   AdminUser? @relation(fields: [updatedById], references: [id])
+}
+
+model AuditLog {
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  adminId    String?    @db.Uuid
+  action     String
+  entityType String
+  entityId   String?
+  meta       Json?
+  ip         String?
+  createdAt  DateTime   @default(now()) @db.Timestamptz(3)
+  admin      AdminUser? @relation(fields: [adminId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
